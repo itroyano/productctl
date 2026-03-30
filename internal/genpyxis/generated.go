@@ -131,8 +131,6 @@ type CertProjectContainerInput struct {
 	Distribution_method string `json:"distribution_method,omitempty"`
 	// ID of the project in for ISV repositories.
 	Isv_pid string `json:"isv_pid,omitempty"`
-	// Kubernetes objects for operator registry projects. Value has to be a valid YAML.
-	Kube_objects string `json:"kube_objects,omitempty"`
 	// Docker config for operator registry projects. Value has to be a valid JSON.
 	Docker_config_json string `json:"docker_config_json,omitempty"`
 	// OS Content Type.
@@ -211,9 +209,6 @@ func (v *CertProjectContainerInput) GetDistribution_method() string { return v.D
 
 // GetIsv_pid returns CertProjectContainerInput.Isv_pid, and is useful for accessing the field via an interface.
 func (v *CertProjectContainerInput) GetIsv_pid() string { return v.Isv_pid }
-
-// GetKube_objects returns CertProjectContainerInput.Kube_objects, and is useful for accessing the field via an interface.
-func (v *CertProjectContainerInput) GetKube_objects() string { return v.Kube_objects }
 
 // GetDocker_config_json returns CertProjectContainerInput.Docker_config_json, and is useful for accessing the field via an interface.
 func (v *CertProjectContainerInput) GetDocker_config_json() string { return v.Docker_config_json }
