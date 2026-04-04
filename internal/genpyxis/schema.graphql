@@ -388,6 +388,15 @@ type Query {
   """Get product versions by product listing _id."""
   find_product_versions_by_product_listing_id(id: ObjectIDFilterScalar, sort_by: [SortBy], page: Int = 0, page_size: Int = 50, filter: ProductVersionFilter): ProductVersionPaginatedResponse
 
+  """Get a product version."""
+  product_version(id: ObjectIDFilterScalar): ProductVersionFederated
+
+  """Get all product versions."""
+  product_versions(sortBy: [SortBy], page: Int = 0, first: Int = 50, filter: ProductVersionFilter): ProductVersionFederatedConnection
+
+  """Get product versions by product listing _id."""
+  product_versions_for_product_listing(id: ObjectIDFilterScalar, sortBy: [SortBy], page: Int = 0, first: Int = 50, filter: ProductVersionFilter): ProductVersionFederatedConnection
+
   """Get a product listing."""
   product_listing(id: ObjectIDFilterScalar): ProductListingFederated
 
@@ -1656,8 +1665,8 @@ type ContainerRepositoryEdges {
   """Get a repository by registry and path (product line/image name)."""
   replaced_by_repository(registry: String, repository: String): ContainerRepositoryResponse
 
-  """Get a vendor by label."""
-  vendor(label: String): ContainerVendorResponse
+  """Get the vendor for a repository."""
+  vendor(registry: String, repository: String): ContainerVendorResponse
 }
 
 type CertificationProjectResponse {
@@ -1814,7 +1823,7 @@ type CertProjectContainer {
   """
   Kubernetes objects for operator registry projects. Value has to be a valid YAML.
   """
-  kube_objects: OpenPGPEncrypted
+  kube_objects: OpenPGPEncrypted @deprecated(reason: "The field was deprecated since there is no usage of it in any customer facing service.")
 
   """
   Docker config for operator registry projects. Value has to be a valid JSON.
@@ -6071,6 +6080,48 @@ type ProductVersionResponse {
 }
 
 """
+ProductVersion defines which Red Hat product versions are supported by given product version.
+"""
+type ProductVersionFederated {
+  """Product Version name."""
+  product_version: String
+
+  """Product Listing Identifier."""
+  product_listing: ObjectID
+
+  """
+  List of Red Hat products and its versions partner product claims to support.
+  """
+  redhat_affinity: [RedHatAffinity]
+
+  """MongoDB unique _id"""
+  _id: ObjectID
+
+  """
+  Red Hat Org ID / account_id from Red Hat SSO. Also corresponds to company_org_id in Red Hat Connect.
+  """
+  org_id: Int
+
+  """
+  The date when the entry was created. Value is created automatically on creation.
+  """
+  creation_date: DateTime
+
+  """The date when the entry was last updated."""
+  last_update_date: DateTime
+}
+
+type ProductVersionFederatedConnection {
+  pageInfo: PageInfo!
+  totalCount: Int
+  edges: [ProductVersionFederatedEdge]
+}
+
+type ProductVersionFederatedEdge {
+  node: ProductVersionFederated
+}
+
+"""
 Product listings define a marketing page in the Ecosystem Catalog. It allows you to group repos and showcase what they accomplish together as an application. In the case of operators, your CSV file populates OperatorHub, which can only be viewed in cluster through OpenShift. Your product listing is publicly visible in the Ecosystem Catalog so anyone can know that it is offered.
 """
 type ProductListingFederated {
@@ -6211,6 +6262,9 @@ type ProductListingFederated {
 
   """The date when the entry was last updated."""
   last_update_date: DateTime
+
+  """Get product versions by product listing _id."""
+  product_versions_connection(id: ObjectIDFilterScalar, sortBy: [SortBy], page: Int = 0, first: Int = 50, filter: ProductVersionFilter): ProductVersionFederatedConnection
 }
 
 type PublicProductListingFunctionalInfo {
@@ -6367,6 +6421,9 @@ type PartnerSolutionProduction {
 
   """Controls visibility of the Partner Solution Production version"""
   published: Boolean
+
+  """Signalize priority in Catalog presentation"""
+  featured_solution: Boolean
 
   """Checksum of the 'solution_content'"""
   solution_content_hash: String
@@ -6597,6 +6654,7 @@ type PartnerSolutionProductionPaginatedResponse {
 input PartnerSolutionProductionFilter {
   draft_id: ObjectIDFilter
   published: BooleanFilter
+  featured_solution: BooleanFilter
   solution_content_hash: StringFilter
   solution_content: PartnerSolutionFilter
   _id: ObjectIDFilter
@@ -7827,11 +7885,6 @@ input CertProjectContainerInput {
 
   """ID of the project in for ISV repositories."""
   isv_pid: String
-
-  """
-  Kubernetes objects for operator registry projects. Value has to be a valid YAML.
-  """
-  kube_objects: OpenPGPEncrypted
 
   """
   Docker config for operator registry projects. Value has to be a valid JSON.
