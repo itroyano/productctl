@@ -388,6 +388,15 @@ type Query {
   """Get product versions by product listing _id."""
   find_product_versions_by_product_listing_id(id: ObjectIDFilterScalar, sort_by: [SortBy], page: Int = 0, page_size: Int = 50, filter: ProductVersionFilter): ProductVersionPaginatedResponse
 
+  """Get a product version."""
+  product_version(id: ObjectIDFilterScalar): ProductVersionFederated
+
+  """Get all product versions."""
+  product_versions(sortBy: [SortBy], page: Int = 0, first: Int = 50, filter: ProductVersionFilter): ProductVersionFederatedConnection
+
+  """Get product versions by product listing _id."""
+  product_versions_for_product_listing(id: ObjectIDFilterScalar, sortBy: [SortBy], page: Int = 0, first: Int = 50, filter: ProductVersionFilter): ProductVersionFederatedConnection
+
   """Get a product listing."""
   product_listing(id: ObjectIDFilterScalar): ProductListingFederated
 
@@ -1656,8 +1665,8 @@ type ContainerRepositoryEdges {
   """Get a repository by registry and path (product line/image name)."""
   replaced_by_repository(registry: String, repository: String): ContainerRepositoryResponse
 
-  """Get a vendor by label."""
-  vendor(label: String): ContainerVendorResponse
+  """Get the vendor for a repository."""
+  vendor(registry: String, repository: String): ContainerVendorResponse
 }
 
 type CertificationProjectResponse {
@@ -1814,7 +1823,7 @@ type CertProjectContainer {
   """
   Kubernetes objects for operator registry projects. Value has to be a valid YAML.
   """
-  kube_objects: OpenPGPEncrypted
+  kube_objects: OpenPGPEncrypted @deprecated(reason: "The field was deprecated since there is no usage of it in any customer facing service.")
 
   """
   Docker config for operator registry projects. Value has to be a valid JSON.
@@ -2233,7 +2242,12 @@ type ProductListing {
   """This field is required when the product listing is published."""
   type: String
   vendor_label: String
-  operator_bundles: [OperatorBundlesItems]
+  operator_bundles: [OperatorBundlesItems] @deprecated(reason: "Deprecated in favour of the operators field, which provides the same data aggregated by package and is significantly smaller for large product listings.")
+
+  """
+  Aggregated operator bundle data grouped by package. Prefer this over operator_bundles for large product listings.
+  """
+  operators: OperatorsSummary
 
   """
   Special certifications specific to the certification platform. The value is given by attached certification projects which are published.
@@ -2278,6 +2292,11 @@ type ProductListing {
 
   """Data about all related approved Red Hat validations."""
   product_validations_data: ProductValidationsData
+
+  """
+  Flag indicating if the product listing was created using AI. Once set to true, it cannot be changed back to false.
+  """
+  ai_generated: Boolean
 
   """
   Red Hat Org ID / account_id from Red Hat SSO. Also corresponds to company_org_id in Red Hat Connect.
@@ -2463,6 +2482,40 @@ Scope: Pyxis subgraph
 Usage: In and Out (Input, Output)
 """
 scalar LowercaseString
+
+"""
+Aggregated summary of all operator bundles associated with this product listing, grouped by package. Prefer this over operator_bundles for consumers that need a compact view.
+"""
+type OperatorsSummary {
+  """
+  Union of all OCP versions supported across all packages in this product listing.
+  """
+  ocp_versions: [SemVer]
+
+  """
+  One entry per unique operator package, aggregated across all bundles for that package.
+  """
+  packages: [OperatorPackageSummary]
+}
+
+"""
+Aggregated summary of a single operator package across all its bundles and OCP versions.
+"""
+type OperatorPackageSummary {
+  """Operator package name, e.g. \"amq-streams\"."""
+  package: String
+
+  """All OCP versions this package has bundles for."""
+  ocp_versions: [SemVer]
+
+  """Union of capabilities across all bundles for this package."""
+  capabilities: [String]
+
+  """
+  Merged annotations across all bundles for this package. Each annotation list field is the union of values seen across bundles.
+  """
+  annotations: OperatorBundleAnnotation
+}
 
 """Data about all related approved Red Hat validations."""
 type ProductValidationsData {
@@ -3407,6 +3460,7 @@ input ProductListingFilter {
   operator_bundles_size: IntFilter
   operator_bundles_elemMatch: OperatorBundlesItemsElemMatchFilter
   operator_bundles: OperatorBundlesItemsListFilter
+  operators: OperatorsSummaryFilter
   certification_badges_size: IntFilter
   certification_badges: StringListFilter
   certification_badges_all_size: IntFilter
@@ -3423,6 +3477,7 @@ input ProductListingFilter {
   deployed_as_all: StringListFilter
   last_published_certification_date: DateTimeFilter
   product_validations_data: ProductValidationsDataFilter
+  ai_generated: BooleanFilter
   org_id: IntFilter
   _id: ObjectIDFilter
   creation_date: DateTimeFilter
@@ -3847,6 +3902,80 @@ input OperatorBundlesItemsListFilter {
 
 input OperatorBundlesItemsListIndexFilter {
   condition: OperatorBundlesItemsFilter
+  index: Int
+}
+
+input OperatorsSummaryFilter {
+  ocp_versions_size: IntFilter
+  ocp_versions: SemVerListFilter
+  packages_size: IntFilter
+  packages_elemMatch: OperatorPackageSummaryElemMatchFilter
+  packages: OperatorPackageSummaryListFilter
+  eq: NULL
+  ne: NULL
+  and: [OperatorsSummaryFilter]
+  or: [OperatorsSummaryFilter]
+  nor: [OperatorsSummaryFilter]
+  not: OperatorsSummaryFilter
+}
+
+input SemVerListFilter {
+  list_index_filter: SemVerListIndexFilter
+  eq: SemVerFilterScalar
+  ne: SemVerFilterScalar
+  le: SemVerFilterScalar
+  lt: SemVerFilterScalar
+  ge: SemVerFilterScalar
+  gt: SemVerFilterScalar
+  in: [SemVerFilterScalar]
+  out: [SemVerFilterScalar]
+}
+
+input SemVerListIndexFilter {
+  condition: SemVerFilter
+  index: Int
+}
+
+input OperatorPackageSummaryElemMatchFilter {
+  and: [OperatorPackageSummaryFilter]
+  or: [OperatorPackageSummaryFilter]
+  nor: [OperatorPackageSummaryFilter]
+  not: OperatorPackageSummaryFilter
+}
+
+input OperatorPackageSummaryFilter {
+  package: StringFilter
+  ocp_versions_size: IntFilter
+  ocp_versions: SemVerListFilter
+  capabilities_size: IntFilter
+  capabilities: StringListFilter
+  annotations: OperatorBundleAnnotationFilter
+  eq: NULL
+  ne: NULL
+  and: [OperatorPackageSummaryFilter]
+  or: [OperatorPackageSummaryFilter]
+  nor: [OperatorPackageSummaryFilter]
+  not: OperatorPackageSummaryFilter
+}
+
+input OperatorPackageSummaryListFilter {
+  list_index_filter: OperatorPackageSummaryListIndexFilter
+  package: StringFilter
+  ocp_versions_size: IntFilter
+  ocp_versions: SemVerListFilter
+  capabilities_size: IntFilter
+  capabilities: StringListFilter
+  annotations: OperatorBundleAnnotationFilter
+  eq: NULL
+  ne: NULL
+  and: [OperatorPackageSummaryFilter]
+  or: [OperatorPackageSummaryFilter]
+  nor: [OperatorPackageSummaryFilter]
+  not: OperatorPackageSummaryFilter
+}
+
+input OperatorPackageSummaryListIndexFilter {
+  condition: OperatorPackageSummaryFilter
   index: Int
 }
 
@@ -6071,6 +6200,48 @@ type ProductVersionResponse {
 }
 
 """
+ProductVersion defines which Red Hat product versions are supported by given product version.
+"""
+type ProductVersionFederated {
+  """Product Version name."""
+  product_version: String
+
+  """Product Listing Identifier."""
+  product_listing: ObjectID
+
+  """
+  List of Red Hat products and its versions partner product claims to support.
+  """
+  redhat_affinity: [RedHatAffinity]
+
+  """MongoDB unique _id"""
+  _id: ObjectID
+
+  """
+  Red Hat Org ID / account_id from Red Hat SSO. Also corresponds to company_org_id in Red Hat Connect.
+  """
+  org_id: Int
+
+  """
+  The date when the entry was created. Value is created automatically on creation.
+  """
+  creation_date: DateTime
+
+  """The date when the entry was last updated."""
+  last_update_date: DateTime
+}
+
+type ProductVersionFederatedConnection {
+  pageInfo: PageInfo!
+  totalCount: Int
+  edges: [ProductVersionFederatedEdge]
+}
+
+type ProductVersionFederatedEdge {
+  node: ProductVersionFederated
+}
+
+"""
 Product listings define a marketing page in the Ecosystem Catalog. It allows you to group repos and showcase what they accomplish together as an application. In the case of operators, your CSV file populates OperatorHub, which can only be viewed in cluster through OpenShift. Your product listing is publicly visible in the Ecosystem Catalog so anyone can know that it is offered.
 """
 type ProductListingFederated {
@@ -6145,7 +6316,12 @@ type ProductListingFederated {
   """This field is required when the product listing is published."""
   type: String
   vendor_label: String
-  operator_bundles: [OperatorBundlesItems]
+  operator_bundles: [OperatorBundlesItems] @deprecated(reason: "Deprecated in favour of the operators field, which provides the same data aggregated by package and is significantly smaller for large product listings.")
+
+  """
+  Aggregated operator bundle data grouped by package. Prefer this over operator_bundles for large product listings.
+  """
+  operators: OperatorsSummary
 
   """
   Special certifications specific to the certification platform. The value is given by attached certification projects which are published.
@@ -6197,6 +6373,11 @@ type ProductListingFederated {
   product_validations_data: ProductValidationsData
 
   """
+  Flag indicating if the product listing was created using AI. Once set to true, it cannot be changed back to false.
+  """
+  ai_generated: Boolean
+
+  """
   Red Hat Org ID / account_id from Red Hat SSO. Also corresponds to company_org_id in Red Hat Connect.
   """
   org_id: Int
@@ -6211,6 +6392,9 @@ type ProductListingFederated {
 
   """The date when the entry was last updated."""
   last_update_date: DateTime
+
+  """Get product versions by product listing _id."""
+  product_versions_connection(id: ObjectIDFilterScalar, sortBy: [SortBy], page: Int = 0, first: Int = 50, filter: ProductVersionFilter): ProductVersionFederatedConnection
 }
 
 type PublicProductListingFunctionalInfo {
@@ -6367,6 +6551,9 @@ type PartnerSolutionProduction {
 
   """Controls visibility of the Partner Solution Production version"""
   published: Boolean
+
+  """Signalize priority in Catalog presentation"""
+  featured_solution: Boolean
 
   """Checksum of the 'solution_content'"""
   solution_content_hash: String
@@ -6597,6 +6784,7 @@ type PartnerSolutionProductionPaginatedResponse {
 input PartnerSolutionProductionFilter {
   draft_id: ObjectIDFilter
   published: BooleanFilter
+  featured_solution: BooleanFilter
   solution_content_hash: StringFilter
   solution_content: PartnerSolutionFilter
   _id: ObjectIDFilter
@@ -7829,11 +8017,6 @@ input CertProjectContainerInput {
   isv_pid: String
 
   """
-  Kubernetes objects for operator registry projects. Value has to be a valid YAML.
-  """
-  kube_objects: OpenPGPEncrypted
-
-  """
   Docker config for operator registry projects. Value has to be a valid JSON.
   """
   docker_config_json: OpenPGPEncrypted
@@ -8107,7 +8290,11 @@ input ProductListingInput {
   """This field is required when the product listing is published."""
   type: String
   vendor_label: String
-  operator_bundles: [OperatorBundlesItemsInput]
+
+  """
+  Aggregated operator bundle data grouped by package. Prefer this over operator_bundles for large product listings.
+  """
+  operators: OperatorsSummaryInput
 
   """
   Special certifications specific to the certification platform. The value is given by attached certification projects which are published.
@@ -8152,6 +8339,11 @@ input ProductListingInput {
 
   """Data about all related approved Red Hat validations."""
   product_validations_data: ProductValidationsDataInput
+
+  """
+  Flag indicating if the product listing was created using AI. Once set to true, it cannot be changed back to false.
+  """
+  ai_generated: Boolean
 
   """
   Red Hat Org ID / account_id from Red Hat SSO. Also corresponds to company_org_id in Red Hat Connect.
@@ -8312,6 +8504,40 @@ input OperatorBundleAnnotationInput {
   The deserialized value of operators.openshift.io/valid-subscription. This defaults to an empty array.
   """
   valid_subscription: [String]
+}
+
+"""
+Aggregated summary of all operator bundles associated with this product listing, grouped by package. Prefer this over operator_bundles for consumers that need a compact view.
+"""
+input OperatorsSummaryInput {
+  """
+  Union of all OCP versions supported across all packages in this product listing.
+  """
+  ocp_versions: [SemVer]
+
+  """
+  One entry per unique operator package, aggregated across all bundles for that package.
+  """
+  packages: [OperatorPackageSummaryInput]
+}
+
+"""
+Aggregated summary of a single operator package across all its bundles and OCP versions.
+"""
+input OperatorPackageSummaryInput {
+  """Operator package name, e.g. \"amq-streams\"."""
+  package: String
+
+  """All OCP versions this package has bundles for."""
+  ocp_versions: [SemVer]
+
+  """Union of capabilities across all bundles for this package."""
+  capabilities: [String]
+
+  """
+  Merged annotations across all bundles for this package. Each annotation list field is the union of values seen across bundles.
+  """
+  annotations: OperatorBundleAnnotationInput
 }
 
 """Data about all related approved Red Hat validations."""
