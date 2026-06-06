@@ -131,8 +131,6 @@ type CertProjectContainerInput struct {
 	Distribution_method string `json:"distribution_method,omitempty"`
 	// ID of the project in for ISV repositories.
 	Isv_pid string `json:"isv_pid,omitempty"`
-	// Kubernetes objects for operator registry projects. Value has to be a valid YAML.
-	Kube_objects string `json:"kube_objects,omitempty"`
 	// Docker config for operator registry projects. Value has to be a valid JSON.
 	Docker_config_json string `json:"docker_config_json,omitempty"`
 	// OS Content Type.
@@ -211,9 +209,6 @@ func (v *CertProjectContainerInput) GetDistribution_method() string { return v.D
 
 // GetIsv_pid returns CertProjectContainerInput.Isv_pid, and is useful for accessing the field via an interface.
 func (v *CertProjectContainerInput) GetIsv_pid() string { return v.Isv_pid }
-
-// GetKube_objects returns CertProjectContainerInput.Kube_objects, and is useful for accessing the field via an interface.
-func (v *CertProjectContainerInput) GetKube_objects() string { return v.Kube_objects }
 
 // GetDocker_config_json returns CertProjectContainerInput.Docker_config_json, and is useful for accessing the field via an interface.
 func (v *CertProjectContainerInput) GetDocker_config_json() string { return v.Docker_config_json }
@@ -1675,34 +1670,45 @@ func (v *OperatorBundleAnnotationInput) GetFeatures() []string { return v.Featur
 // GetValid_subscription returns OperatorBundleAnnotationInput.Valid_subscription, and is useful for accessing the field via an interface.
 func (v *OperatorBundleAnnotationInput) GetValid_subscription() []string { return v.Valid_subscription }
 
-type OperatorBundlesItemsInput struct {
-	// Bundle unique identifier
-	Id string `json:"_id,omitempty"`
-	// Bundle package name
-	Package      string   `json:"package,omitempty"`
+// Aggregated summary of a single operator package across all its bundles and OCP versions.
+type OperatorPackageSummaryInput struct {
+	// Operator package name, e.g. \"amq-streams\".
+	Package string `json:"package,omitempty"`
+	// All OCP versions this package has bundles for.
+	Ocp_versions []string `json:"ocp_versions,omitempty"`
+	// Union of capabilities across all bundles for this package.
 	Capabilities []string `json:"capabilities,omitempty"`
-	// Specific OCP version for this bundle, e.g. \"4.5\".
-	Ocp_version string `json:"ocp_version,omitempty"`
-	// A subset of the \"metadata.annotations\" object from the CSV. Any annotations that are in the \"operators.openshift.io\" namespace that are strings of JSON will be expanded if it is valid JSON. Namespaces are not preserved due to their usage of special characters and all dashes are converted to underscores for consistency with other fields.
+	// Merged annotations across all bundles for this package. Each annotation list field is the union of values seen across bundles.
 	Annotations *OperatorBundleAnnotationInput `json:"annotations,omitempty"`
 }
 
-// GetId returns OperatorBundlesItemsInput.Id, and is useful for accessing the field via an interface.
-func (v *OperatorBundlesItemsInput) GetId() string { return v.Id }
+// GetPackage returns OperatorPackageSummaryInput.Package, and is useful for accessing the field via an interface.
+func (v *OperatorPackageSummaryInput) GetPackage() string { return v.Package }
 
-// GetPackage returns OperatorBundlesItemsInput.Package, and is useful for accessing the field via an interface.
-func (v *OperatorBundlesItemsInput) GetPackage() string { return v.Package }
+// GetOcp_versions returns OperatorPackageSummaryInput.Ocp_versions, and is useful for accessing the field via an interface.
+func (v *OperatorPackageSummaryInput) GetOcp_versions() []string { return v.Ocp_versions }
 
-// GetCapabilities returns OperatorBundlesItemsInput.Capabilities, and is useful for accessing the field via an interface.
-func (v *OperatorBundlesItemsInput) GetCapabilities() []string { return v.Capabilities }
+// GetCapabilities returns OperatorPackageSummaryInput.Capabilities, and is useful for accessing the field via an interface.
+func (v *OperatorPackageSummaryInput) GetCapabilities() []string { return v.Capabilities }
 
-// GetOcp_version returns OperatorBundlesItemsInput.Ocp_version, and is useful for accessing the field via an interface.
-func (v *OperatorBundlesItemsInput) GetOcp_version() string { return v.Ocp_version }
-
-// GetAnnotations returns OperatorBundlesItemsInput.Annotations, and is useful for accessing the field via an interface.
-func (v *OperatorBundlesItemsInput) GetAnnotations() *OperatorBundleAnnotationInput {
+// GetAnnotations returns OperatorPackageSummaryInput.Annotations, and is useful for accessing the field via an interface.
+func (v *OperatorPackageSummaryInput) GetAnnotations() *OperatorBundleAnnotationInput {
 	return v.Annotations
 }
+
+// Aggregated summary of all operator bundles associated with this product listing, grouped by package. Prefer this over operator_bundles for consumers that need a compact view.
+type OperatorsSummaryInput struct {
+	// Union of all OCP versions supported across all packages in this product listing.
+	Ocp_versions []string `json:"ocp_versions,omitempty"`
+	// One entry per unique operator package, aggregated across all bundles for that package.
+	Packages []*OperatorPackageSummaryInput `json:"packages,omitempty"`
+}
+
+// GetOcp_versions returns OperatorsSummaryInput.Ocp_versions, and is useful for accessing the field via an interface.
+func (v *OperatorsSummaryInput) GetOcp_versions() []string { return v.Ocp_versions }
+
+// GetPackages returns OperatorsSummaryInput.Packages, and is useful for accessing the field via an interface.
+func (v *OperatorsSummaryInput) GetPackages() []*OperatorPackageSummaryInput { return v.Packages }
 
 // ProductByIDGet_product_listingProductListingResponse includes the requested fields of the GraphQL type ProductListingResponse.
 type ProductByIDGet_product_listingProductListingResponse struct {
@@ -1813,9 +1819,10 @@ type ProductListingInput struct {
 	// List of target platforms for the product listing.
 	Target_platforms []string `json:"target_platforms,omitempty"`
 	// This field is required when the product listing is published.
-	Type             string                       `json:"type,omitempty"`
-	Vendor_label     string                       `json:"vendor_label,omitempty"`
-	Operator_bundles []*OperatorBundlesItemsInput `json:"operator_bundles,omitempty"`
+	Type         string `json:"type,omitempty"`
+	Vendor_label string `json:"vendor_label,omitempty"`
+	// Aggregated operator bundle data grouped by package. Prefer this over operator_bundles for large product listings.
+	Operators *OperatorsSummaryInput `json:"operators,omitempty"`
 	// Special certifications specific to the certification platform. The value is given by attached certification projects which are published.
 	Certification_badges []string `json:"certification_badges,omitempty"`
 	// Special certifications specific to the certification platform. The value is given by all attached certification projects with any certification_level.
@@ -1836,6 +1843,8 @@ type ProductListingInput struct {
 	Last_published_certification_date *time.Time `json:"last_published_certification_date,omitempty"`
 	// Data about all related approved Red Hat validations.
 	Product_validations_data *ProductValidationsDataInput `json:"product_validations_data,omitempty"`
+	// Flag indicating if the product listing was created using AI. Once set to true, it cannot be changed back to false.
+	Ai_generated bool `json:"ai_generated,omitempty"`
 	// Red Hat Org ID / account_id from Red Hat SSO. Also corresponds to company_org_id in Red Hat Connect.
 	Org_id int `json:"org_id,omitempty"`
 	// MongoDB unique _id
@@ -1927,10 +1936,8 @@ func (v *ProductListingInput) GetType() string { return v.Type }
 // GetVendor_label returns ProductListingInput.Vendor_label, and is useful for accessing the field via an interface.
 func (v *ProductListingInput) GetVendor_label() string { return v.Vendor_label }
 
-// GetOperator_bundles returns ProductListingInput.Operator_bundles, and is useful for accessing the field via an interface.
-func (v *ProductListingInput) GetOperator_bundles() []*OperatorBundlesItemsInput {
-	return v.Operator_bundles
-}
+// GetOperators returns ProductListingInput.Operators, and is useful for accessing the field via an interface.
+func (v *ProductListingInput) GetOperators() *OperatorsSummaryInput { return v.Operators }
 
 // GetCertification_badges returns ProductListingInput.Certification_badges, and is useful for accessing the field via an interface.
 func (v *ProductListingInput) GetCertification_badges() []string { return v.Certification_badges }
@@ -1971,6 +1978,9 @@ func (v *ProductListingInput) GetLast_published_certification_date() *time.Time 
 func (v *ProductListingInput) GetProduct_validations_data() *ProductValidationsDataInput {
 	return v.Product_validations_data
 }
+
+// GetAi_generated returns ProductListingInput.Ai_generated, and is useful for accessing the field via an interface.
+func (v *ProductListingInput) GetAi_generated() bool { return v.Ai_generated }
 
 // GetOrg_id returns ProductListingInput.Org_id, and is useful for accessing the field via an interface.
 func (v *ProductListingInput) GetOrg_id() int { return v.Org_id }
